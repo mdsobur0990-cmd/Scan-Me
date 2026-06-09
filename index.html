@@ -5,311 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Pro Scanner AI Ultra</title>
     
-    <!-- PWA Integration -->
+    <!-- PWA Settings -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1022/1022313.png">
+    
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('Service Worker registered'))
-            .catch(err => console.log('Service Worker failed', err));
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('SW Registered'))
+            .catch(err => console.log('SW Failed', err));
         });
       }
     </script>
 
+    <!-- AI Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.4"></script>
     
     <style>
-        :root { 
-            --primary: #2563eb; 
-            --bg: #f8fafc; 
-            --card: #ffffff; 
-            --text: #1e293b;
-            --success: #22c55e; 
-            --danger: #ef4444; 
-            --border: #e2e8f0;
-        }
-
-        body { 
-            font-family: -apple-system, system-ui, sans-serif;
-            margin: 0; background: var(--bg); color: var(--text);
-            overflow: hidden; touch-action: manipulation;
-        }
-
-        /* UI Overlays */
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --success: #22c55e; --danger: #ef4444; --border: #e2e8f0; }
+        body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; touch-action: manipulation; }
         #loading-overlay { position: fixed; inset: 0; background: #fff; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .loader { width: 45px; height: 45px; border: 5px solid var(--border); border-bottom-color: var(--primary); border-radius: 50%; animation: rotation 1s linear infinite; }
         @keyframes rotation { 0% { transform: rotate(0deg) } 100% { transform: rotate(360deg) } }
-
-        /* Nav & Header */
         .header { background: #fff; padding: 10px; text-align: center; font-weight: 800; border-bottom: 1px solid var(--border); font-size: 15px; }
         .nav-bar { position: fixed; bottom: 0; width: 100%; height: 70px; background: #fff; display: flex; border-top: 1px solid var(--border); z-index: 90; }
         .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #94a3b8; font-weight: 700; cursor: pointer; }
         .nav-item.active { color: var(--primary); }
         .nav-item i { font-size: 18px; margin-bottom: 2px; font-style: normal; }
-
-        /* Screen Layouts */
         .screen { height: calc(100vh - 135px); overflow-y: auto; padding: 10px; box-sizing: border-box; }
         .hidden { display: none !important; }
-
-        /* Video Containers */
         .video-wrapper { width: 100%; border-radius: 18px; overflow: hidden; background: #000; position: relative; border: 3px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         #v-scan-container { height: 42vh; margin-bottom: 8px; }
         #v-train-container { height: 140px; margin: 6px 0; } 
-
         video { width: 100%; height: 100%; object-fit: cover; }
-
-        /* Result Display */
-        #result-card {
-            background: #fff; border-radius: 15px; padding: 12px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.06); border: 1px solid var(--border);
-            text-align: center; transform: translateY(5px); opacity: 0; transition: 0.2s ease;
-        }
+        #result-card { background: #fff; border-radius: 15px; padding: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); border: 1px solid var(--border); text-align: center; transform: translateY(5px); opacity: 0; transition: 0.2s ease; }
         #result-card.visible { transform: translateY(0); opacity: 1; }
         .price-grid { display: flex; justify-content: space-around; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
         .price-item span { font-size: 18px; font-weight: 900; }
-
-        /* Round Floating Button */
         .scan-trigger-container { position: absolute; bottom: 85px; left: 0; right: 0; display: flex; justify-content: center; z-index: 100; pointer-events: none; }
-        .btn-round-scan {
-            width: 70px; height: 70px; border-radius: 50%; background: var(--primary);
-            border: 4px solid #fff; box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4);
-            color: #fff; font-weight: 800; font-size: 12px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; 
-            transition: 0.1s; pointer-events: auto;
-        }
+        .btn-round-scan { width: 70px; height: 70px; border-radius: 50%; background: var(--primary); border: 4px solid #fff; box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4); color: #fff; font-weight: 800; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.1s; pointer-events: auto; }
         .btn-round-scan:active { transform: scale(0.85); background: #1d4ed8; }
-
-        /* Compact Form Styling */
-        .card { background: #fff; border-radius: 15px; padding: 12px; border: 1px solid var(--border); }
-        input { width: 100%; padding: 10px; margin: 3px 0; border: 1px solid var(--border); border-radius: 10px; background: #f1f5f9; font-size: 14px; box-sizing: border-box; outline: none; }
-        .btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; margin-top: 5px; font-size: 14px; }
-        .btn-primary { background: #1e293b; color: #fff; }
-        .btn-train { background: var(--primary); color: #fff; }
-
-        .item-row { background: #fff; padding: 10px; border-radius: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
-    </style>
-</head>
-<body>
-
-    <div id="loading-overlay">
-        <div class="loader"></div>
-        <p style="margin-top:15px; font-weight:700; color:#475569; font-size: 13px;">OPTIMIZING AI VISION...</p>
-    </div>
-
-    <div class="header">PRO SCANNER AI</div>
-
-    <!-- SCAN PAGE -->
-    <div id="scan-screen" class="screen">
-        <div class="video-wrapper" id="v-scan-container">
-            <video id="v-scan" autoplay playsinline muted></video>
-        </div>
-
-        <div id="result-card">
-            <div id="d-name" style="font-weight: 800; color: var(--primary); font-size: 16px;">READY TO SCAN</div>
-            <div class="price-grid">
-                <div class="price-item">
-                    <small style="color:#94a3b8; font-size:9px; display:block; font-weight:bold;">BUY</small>
-                    <span id="d-buy" style="color: var(--danger);">$0</span>
-                </div>
-                <div class="price-item" style="border-left: 1px solid var(--border); padding-left: 10px;">
-                    <small style="color:#94a3b8; font-size:9px; display:block; font-weight:bold;">SELL</small>
-                    <span id="d-sell" style="color: var(--success);">$0</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="scan-trigger-container">
-            <button class="btn-round-scan" id="hold-scan-btn">SCAN</button>
-        </div>
-    </div>
-
-    <!-- ADD PAGE -->
-    <div id="add-screen" class="screen hidden">
-        <div class="card">
-            <h3 style="margin: 0 0 5px 0; font-size: 14px;">Product Setup</h3>
-            <input type="text" id="i-name" placeholder="Product Name">
-            <div style="display:flex; gap:5px">
-                <input type="number" id="i-buy" placeholder="Buy $">
-                <input type="number" id="i-sell" placeholder="Sell $">
-            </div>
-
-            <div class="video-wrapper" id="v-train-container">
-                <video id="v-train" autoplay playsinline muted></video>
-            </div>
-            
-            <button class="btn btn-train" id="t-btn">HOLD TO TRAIN</button>
-            <button class="btn btn-primary" onclick="saveProduct()">SAVE PRODUCT</button>
-        </div>
-    </div>
-
-    <!-- ITEMS PAGE -->
-    <div id="list-screen" class="screen hidden">
-        <h3 style="margin:0 0 8px 5px; font-size: 16px;">Inventory</h3>
-        <div id="inv-list"></div>
-    </div>
-
-    <!-- NAVIGATION -->
-    <div class="nav-bar">
-        <div class="nav-item active" onclick="tab('scan-screen', this)"><i>📷</i><span>Scan</span></div>
-        <div class="nav-item" onclick="tab('add-screen', this)"><i>➕</i><span>Add</span></div>
-        <div class="nav-item" onclick="tab('list-screen', this)"><i>📦</i><span>Items</span></div>
-    </div>
-
-    <script>
-        let classifier, net, inventory = {}, isTraining = false, isScanning = false, scanActive = true;
-        let predictionHistory = [];
-        const HISTORY_SIZE = 5;
-
-        async function accessDB(mode) {
-            return new Promise((resolve) => {
-                const request = indexedDB.open("ScannerUltra_DB", 1);
-                request.onupgradeneeded = e => e.target.result.createObjectStore("Data");
-                request.onsuccess = e => resolve(e.target.result.transaction("Data", mode).objectStore("Data"));
-            });
-        }
-
-        async function init() {
-            try {
-                classifier = knnClassifier.create();
-                net = await mobilenet.load();
-                const store = await accessDB("readonly");
-                const savedInv = await new Promise(r => store.get("inv").onsuccess = e => r(e.target.result));
-                const savedBrain = await new Promise(r => store.get("brain").onsuccess = e => r(e.target.result));
-                if (savedInv) inventory = savedInv;
-                if (savedBrain) {
-                    const dataset = JSON.parse(savedBrain);
-                    Object.keys(dataset).forEach(key => { 
-                        dataset[key] = tf.tensor2d(dataset[key].data, dataset[key].shape); 
-                    });
-                    classifier.setClassifierDataset(dataset);
-                }
-                document.getElementById('loading-overlay').style.display = 'none';
-                startCam(document.getElementById('v-scan'));
-                loop();
-            } catch (e) { alert("Camera access needed."); }
-        }
-
-        async function startCam(v) {
-            if (v.srcObject) return;
-            try {
-                const s = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: 640, height: 480 }, 
-                    audio: false 
-                });
-                v.srcObject = s;
-            } catch (e) { console.error("Camera fail"); }
-        }
-
-        function tab(id, el) {
-            scanActive = (id === 'scan-screen');
-            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById(id).classList.remove('hidden');
-            el.classList.add('active');
-            if(id === 'add-screen') startCam(document.getElementById('v-train'));
-            if(id === 'scan-screen') { startCam(document.getElementById('v-scan')); closeResult(); }
-            if(id === 'list-screen') renderList();
-        }
-
-        function closeResult() { 
-            document.getElementById('result-card').classList.remove('visible'); 
-            predictionHistory = [];
-        }
-
-        const scanBtn = document.getElementById('hold-scan-btn');
-        const scanStart = (e) => { e.preventDefault(); if (navigator.vibrate) navigator.vibrate(50); isScanning = true; closeResult(); };
-        const scanEnd = () => { isScanning = false; };
-        scanBtn.addEventListener('mousedown', scanStart);
-        scanBtn.addEventListener('touchstart', scanStart);
-        window.addEventListener('mouseup', scanEnd);
-        window.addEventListener('touchend', scanEnd);
-
-        const tBtn = document.getElementById('t-btn');
-        const trainStart = (e) => {
-            e.preventDefault();
-            if(!document.getElementById('i-name').value) return alert("Enter name");
-            isTraining = true;
-            tBtn.innerText = "TRAINING (MOVE ITEM)";
-            trainLoop();
-        };
-        const trainEnd = () => { isTraining = false; tBtn.innerText = "HOLD TO TRAIN"; };
-        tBtn.addEventListener('mousedown', trainStart);
-        tBtn.addEventListener('touchstart', trainStart);
-        window.addEventListener('mouseup', trainEnd);
-        window.addEventListener('touchend', trainEnd);
-
-        async function trainLoop() {
-            if(!isTraining) return;
-            const img = await net.infer(document.getElementById('v-train'), 'conv_preds');
-            classifier.addExample(img, document.getElementById('i-name').value);
-            setTimeout(trainLoop, 60); 
-        }
-
-        async function saveProduct() {
-            const name = document.getElementById('i-name').value.trim();
-            const buy = document.getElementById('i-buy').value;
-            const sell = document.getElementById('i-sell').value;
-            if(!name || !buy || !sell) return alert("Missing fields");
-            inventory[name] = { buy, sell };
-            const store = await accessDB("readwrite");
-            store.put(inventory, "inv");
-            const dataset = classifier.getClassifierDataset();
-            const brainObj = {};
-            Object.keys(dataset).forEach(key => { brainObj[key] = { data: Array.from(dataset[key].dataSync()), shape: dataset[key].shape }; });
-            store.put(JSON.stringify(brainObj), "brain");
-            alert("Saved!"); 
-            document.getElementById('i-name').value = '';
-            document.getElementById('i-buy').value = '';
-            document.getElementById('i-sell').value = '';
-        }
-
-        function renderList() {
-            const list = document.getElementById('inv-list');
-            const items = Object.keys(inventory);
-            list.innerHTML = items.length === 0 ? '<p style="text-align:center;color:#94a3b8;font-size:12px">No items</p>' :
-                items.map(k => `
-                    <div class="item-row">
-                        <div style="font-size:14px"><b>${k}</b><br><small>$${inventory[k].buy}/$${inventory[k].sell}</small></div>
-                        <button style="background:#fef2f2;color:#ef4444;border:none;padding:5px 10px;border-radius:5px" onclick="deleteItem('${k}')">Del</button>
-                    </div>
-                `).join('');
-        }
-
-        async function deleteItem(name) {
-            if(!confirm(`Delete ${name}?`)) return;
-            delete inventory[name];
-            const store = await accessDB("readwrite");
-            store.put(inventory, "inv");
-            renderList();
-        }
-
-        async function loop() {
-            if (scanActive && isScanning && classifier.getNumClasses() > 0) {
-                try {
-                    const img = await net.infer(document.getElementById('v-scan'), 'conv_preds');
-                    const res = await classifier.predictClass(img);
-                    predictionHistory.push(res.label);
-                    if (predictionHistory.length > HISTORY_SIZE) predictionHistory.shift();
-                    const mode = predictionHistory.reduce((a,b,i,arr) => (arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b));
-                    const confidence = res.confidences[res.label];
-                    if (confidence > 0.80 && mode === res.label) {
-                        const item = inventory[res.label];
-                        if (item) {
-                            document.getElementById('d-name').innerText = res.label.toUpperCase();
-                            document.getElementById('d-buy').innerText = `$${item.buy}`;
-                            document.getElementById('d-sell').innerText = `$${item.sell}`;
-                            document.getElementById('result-card').classList.add('visible');
-                        }
-                    }
-                } catch(e) {}
-            }
-            requestAnimationFrame(loop);
-        }
-        init();
-    </script>
-</body>
-</html>
+        .c
