@@ -8,7 +8,6 @@
     <link rel="manifest" href="./manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="./icon.png">
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
@@ -16,52 +15,71 @@
     
     <style>
         :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --success: #22c55e; --danger: #ef4444; }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); padding-bottom: 90px; }
-        .header { background: var(--card); padding: 18px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: 800; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); padding-bottom: 90px; overflow-x: hidden; }
+        .header { background: var(--card); padding: 18px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: 800; position: sticky; top: 0; z-index: 100; }
         .container { padding: 15px; max-width: 500px; margin: auto; }
-        .video-box { width: 100%; border-radius: 20px; overflow: hidden; background: #000; line-height: 0; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
-        video { width: 100%; transform: none; } 
+        .video-box { width: 100%; border-radius: 20px; overflow: hidden; background: #000; line-height: 0; box-shadow: 0 10px 15px rgba(0,0,0,0.1); position: relative; }
+        video { width: 100%; height: auto; transform: scaleX(1); } 
         .card { background: var(--card); padding: 20px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
         input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 16px; box-sizing: border-box; }
-        button { width: 100%; background: var(--primary); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; margin: 8px 0; }
-        .btn-train { background: var(--success); }
-        .price-badge { background: #f0f9ff; padding: 16px; border-radius: 15px; margin-top: 15px; border-left: 6px solid var(--success); }
-        .nav-bar { position: fixed; bottom: 0; width: 100%; background: white; display: flex; padding: 10px 0 25px 0; border-top: 1px solid #e2e8f0; }
+        button { width: 100%; background: var(--primary); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; margin: 8px 0; transition: opacity 0.2s; }
+        button:active { opacity: 0.7; }
+        .btn-train { background: var(--success); user-select: none; -webkit-user-select: none; }
+        .btn-train.active { background: #16a34a; transform: scale(0.98); }
+        .price-badge { background: #f0f9ff; padding: 16px; border-radius: 15px; margin-top: 15px; border-left: 6px solid var(--success); animation: slideIn 0.3s ease; }
+        .nav-bar { position: fixed; bottom: 0; width: 100%; background: white; display: flex; padding: 10px 0 25px 0; border-top: 1px solid #e2e8f0; z-index: 100; }
         .nav-item { text-align: center; font-size: 11px; color: #94a3b8; flex: 1; cursor: pointer; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .hidden { display: none; }
+        .inv-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #f1f5f9; }
+        .del-btn { background: #fee2e2; color: var(--danger); padding: 8px 12px; border-radius: 8px; font-size: 12px; width: auto; margin: 0; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #loading-overlay { position: fixed; inset: 0; background: white; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
+    <div id="loading-overlay">
+        <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">PRO SCANNER AI</div>
+        <div id="load-status">Loading Neural Networks...</div>
+    </div>
+
     <div class="header">PRO SCANNER AI</div>
 
+    <!-- SCAN SCREEN -->
     <div id="scan-screen" class="container">
         <div class="card">
-            <div class="video-box"><video id="v-scan" autoplay playsinline></video></div>
-            <div id="status" style="text-align:center; margin:10px; font-weight:600;">Initializing AI...</div>
+            <div class="video-box"><video id="v-scan" autoplay playsinline muted></video></div>
+            <div id="status" style="text-align:center; margin:15px; font-weight:600; color:#64748b;">Ready</div>
             <div id="result" class="price-badge hidden">
                 <div style="color:var(--danger); font-size:12px; font-weight:bold;">BUY: $<span id="d-buy">0</span></div>
-                <div style="color:var(--success); font-size:24px; font-weight:900;">SELL: $<span id="d-sell">0</span></div>
-                <div id="d-name" style="font-size:14px; font-weight:bold; color:#475569;">NAME</div>
+                <div style="color:var(--success); font-size:26px; font-weight:900;">SELL: $<span id="d-sell">0</span></div>
+                <div id="d-name" style="font-size:16px; font-weight:bold; color:#1e293b; margin-top:4px;">NAME</div>
             </div>
         </div>
     </div>
 
+    <!-- ADD SCREEN -->
     <div id="add-screen" class="container hidden">
         <div class="card">
-            <h3>Add Product</h3>
-            <input type="text" id="i-name" placeholder="Product Name">
+            <h3>Add New Product</h3>
+            <input type="text" id="i-name" placeholder="Product Name (e.g. Coke Can)">
             <input type="number" id="i-buy" placeholder="Buy Price $">
             <input type="number" id="i-sell" placeholder="Sell Price $">
-            <div class="video-box" style="height:150px; margin:10px 0;"><video id="v-train" autoplay playsinline></video></div>
+            <div class="video-box" style="height:180px; margin:10px 0;"><video id="v-train" autoplay playsinline muted></video></div>
+            <p style="font-size: 12px; color: #64748b; text-align: center;">Point camera at product and hold the button below</p>
             <button class="btn-train" id="t-btn">HOLD TO TRAIN AI</button>
-            <button onclick="save()">SAVE PRODUCT</button>
+            <button onclick="saveProduct()" style="background:#1e293b;">SAVE PRODUCT & AI</button>
         </div>
     </div>
 
+    <!-- LIST SCREEN -->
     <div id="list-screen" class="container hidden">
-        <div class="card"><h3>Inventory</h3><div id="inv-list"></div></div>
+        <div class="card">
+            <h3>Inventory</h3>
+            <div id="inv-list"></div>
+            <button onclick="clearAllData()" style="background:var(--danger); margin-top: 20px; font-size: 12px; padding: 10px;">RESET ALL DATA</button>
+        </div>
     </div>
 
     <div class="nav-bar">
@@ -71,146 +89,223 @@
     </div>
 
     <script>
-        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
+        let classifier, net;
+        let inventory = {};
+        let isTraining = false;
+        let scanActive = true;
 
-let classifier, net, inv = JSON.parse(localStorage.getItem('db_v1')) || {};
-const vScan = document.getElementById('v-scan'), vTrain = document.getElementById('v-train');
-let isTraining = false;
+        const vScan = document.getElementById('v-scan');
+        const vTrain = document.getElementById('v-train');
 
-async function init() {
-    classifier = knnClassifier.create();
-    net = await mobilenet.load();
-    
-    // LOAD SAVED AI DATA
-    const savedModel = localStorage.getItem('ai_brain_v1');
-    if (savedModel) {
-        const dataset = JSON.parse(savedModel);
-        Object.keys(dataset).forEach((key) => {
-            dataset[key] = tf.tensor2d(dataset[key].data, dataset[key].shape);
-        });
-        classifier.setClassifierDataset(dataset);
-        console.log("AI Brain Loaded");
-    }
+        // --- DATABASE LOGIC (IndexedDB for large AI data) ---
+        const dbName = "ScannerDB";
+        const storeName = "AIBrain";
 
-    document.getElementById('status').innerText = "Ready to Scan";
-    cam(vScan); 
-    loop();
-}
-
-async function cam(v) {
-    try {
-        const s = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment" }, 
-            audio: false 
-        });
-        v.srcObject = s;
-    } catch (err) {
-        alert("Camera error: " + err);
-    }
-}
-
-function tab(id, el) {
-    document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById(id).classList.remove('hidden');
-    el.classList.add('active');
-    if(id === 'add-screen') cam(vTrain);
-    if(id === 'list-screen') render();
-}
-
-// --- IMPROVED TRAINING LOGIC ---
-const tBtn = document.getElementById('t-btn');
-
-const startTraining = (e) => { 
-    e.preventDefault(); 
-    isTraining = true; 
-    doTrain(); 
-};
-const stopTraining = () => { isTraining = false; };
-
-tBtn.onmousedown = startTraining;
-tBtn.onmouseup = stopTraining;
-tBtn.ontouchstart = startTraining;
-tBtn.ontouchend = stopTraining;
-
-async function doTrain() {
-    const name = document.getElementById('i-name').value;
-    if(!name) {
-        isTraining = false;
-        return alert("Please enter a product name first!");
-    }
-
-    if(isTraining) {
-        // Capture frame and add to AI
-        const img = await net.infer(vTrain, 'conv_preds');
-        classifier.addExample(img, name);
-        
-        document.getElementById('status').innerText = `Training: ${name}...`;
-        // Rapidly capture next frame (approx 10 frames per second)
-        setTimeout(doTrain, 100); 
-    } else {
-        document.getElementById('status').innerText = "Training Paused";
-    }
-}
-
-// --- SAVING DATA ---
-function save() {
-    const n = document.getElementById('i-name').value;
-    if(!n) return alert("Enter Name");
-
-    // 1. Save Text Data
-    inv[n] = { 
-        buy: document.getElementById('i-buy').value, 
-        sell: document.getElementById('i-sell').value 
-    };
-    localStorage.setItem('db_v1', JSON.stringify(inv));
-
-    // 2. Save AI Brain (Tensors must be converted to Arrays)
-    const dataset = classifier.getClassifierDataset();
-    const datasetObj = {};
-    Object.keys(dataset).forEach((key) => {
-        datasetObj[key] = {
-            data: dataset[key].dataSync(),
-            shape: dataset[key].shape
-        };
-    });
-    localStorage.setItem('ai_brain_v1', JSON.stringify(datasetObj));
-
-    alert("Product and AI Model Saved!");
-    location.reload(); // Refresh to ensure everything is initialized fresh
-}
-
-// --- SCANNING LOOP ---
-async function loop() {
-    if (classifier.getNumClasses() > 0 && !document.getElementById('scan-screen').classList.contains('hidden')) {
-        const img = await net.infer(vScan, 'conv_preds');
-        const res = await classifier.predictClass(img);
-        
-        if (res.confidences[res.label] > 0.80) { // 80% confidence threshold
-            const product = inv[res.label];
-            if(product) {
-                document.getElementById('d-name').innerText = res.label.toUpperCase();
-                document.getElementById('d-buy').innerText = product.buy;
-                document.getElementById('d-sell').innerText = product.sell;
-                document.getElementById('result').classList.remove('hidden');
-                document.getElementById('status').innerText = "Match Found!";
-            }
-        } else {
-            document.getElementById('result').classList.add('hidden');
-            document.getElementById('status').innerText = "Scanning...";
+        async function saveToDB(data, inv) {
+            const request = indexedDB.open(dbName, 1);
+            request.onupgradeneeded = e => e.target.result.createObjectStore(storeName);
+            request.onsuccess = e => {
+                const db = e.target.result;
+                const tx = db.transaction(storeName, "readwrite");
+                tx.objectStore(storeName).put(data, "classifier_model");
+                tx.objectStore(storeName).put(inv, "inventory_data");
+            };
         }
-    }
-    requestAnimationFrame(loop);
-}
 
-function render() {
-    document.getElementById('inv-list').innerHTML = Object.keys(inv).map(k => 
-        `<div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
-            <b>${k}</b> <span>Buy: $${inv[k].buy} | Sell: $${inv[k].sell}</span>
-        </div>`).join('');
-}
+        async function loadFromDB() {
+            return new Promise((resolve) => {
+                const request = indexedDB.open(dbName, 1);
+                request.onupgradeneeded = e => e.target.result.createObjectStore(storeName);
+                request.onsuccess = e => {
+                    const db = e.target.result;
+                    const tx = db.transaction(storeName, "readonly");
+                    const store = tx.objectStore(storeName);
+                    const req1 = store.get("classifier_model");
+                    const req2 = store.get("inventory_data");
+                    
+                    tx.oncomplete = () => {
+                        resolve({ model: req1.result, inv: req2.result });
+                    };
+                };
+            });
+        }
 
-init();
+        // --- INITIALIZATION ---
+        async function init() {
+            try {
+                classifier = knnClassifier.create();
+                net = await mobilenet.load();
+                
+                const saved = await loadFromDB();
+                if (saved.inv) inventory = saved.inv;
+                if (saved.model) {
+                    const dataset = JSON.parse(saved.model);
+                    Object.keys(dataset).forEach((key) => {
+                        dataset[key] = tf.tensor2d(dataset[key].data, dataset[key].shape);
+                    });
+                    classifier.setClassifierDataset(dataset);
+                }
+
+                document.getElementById('loading-overlay').style.display = 'none';
+                startCamera(vScan);
+                runScanner();
+            } catch (e) {
+                alert("Init Error: " + e);
+            }
+        }
+
+        async function startCamera(videoEl) {
+            if (videoEl.srcObject) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" },
+                    audio: false
+                });
+                videoEl.srcObject = stream;
+            } catch (err) {
+                alert("Camera Access Denied");
+            }
+        }
+
+        function tab(id, el) {
+            scanActive = (id === 'scan-screen');
+            document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(id).classList.remove('hidden');
+            el.classList.add('active');
+            
+            if(id === 'add-screen') startCamera(vTrain);
+            if(id === 'list-screen') renderList();
+        }
+
+        // --- TRAINING ---
+        const tBtn = document.getElementById('t-btn');
+        const handleTrain = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('i-name').value;
+            if(!name) return alert("Enter product name first!");
+            isTraining = true;
+            tBtn.classList.add('active');
+            tBtn.innerText = "TRAINING...";
+            doTrainLoop();
+        };
+
+        const stopTrain = () => {
+            isTraining = false;
+            tBtn.classList.remove('active');
+            tBtn.innerText = "HOLD TO TRAIN AI";
+        };
+
+        tBtn.onmousedown = handleTrain;
+        tBtn.onmouseup = stopTrain;
+        tBtn.ontouchstart = handleTrain;
+        tBtn.ontouchend = stopTrain;
+
+        async function doTrainLoop() {
+            if(!isTraining) return;
+            const name = document.getElementById('i-name').value;
+            const img = await net.infer(vTrain, 'conv_preds');
+            classifier.addExample(img, name);
+            setTimeout(doTrainLoop, 100); 
+        }
+
+        async function saveProduct() {
+            const name = document.getElementById('i-name').value;
+            const buy = document.getElementById('i-buy').value;
+            const sell = document.getElementById('i-sell').value;
+
+            if(!name || !buy || !sell) return alert("Fill all fields");
+
+            inventory[name] = { buy, sell };
+            
+            // Serialize and save
+            const dataset = classifier.getClassifierDataset();
+            const datasetObj = {};
+            Object.keys(dataset).forEach((key) => {
+                datasetObj[key] = {
+                    data: Array.from(dataset[key].dataSync()),
+                    shape: dataset[key].shape
+                };
+            });
+
+            await saveToDB(JSON.stringify(datasetObj), inventory);
+            alert("Saved to AI Brain!");
+            location.reload();
+        }
+
+        // --- SCANNER LOOP ---
+        async function runScanner() {
+            if (scanActive && classifier.getNumClasses() > 0) {
+                try {
+                    const img = await net.infer(vScan, 'conv_preds');
+                    const res = await classifier.predictClass(img);
+                    
+                    if (res.confidences[res.label] > 0.85) { 
+                        const item = inventory[res.label];
+                        if(item) {
+                            document.getElementById('d-name').innerText = res.label.toUpperCase();
+                            document.getElementById('d-buy').innerText = item.buy;
+                            document.getElementById('d-sell').innerText = item.sell;
+                            document.getElementById('result').classList.remove('hidden');
+                            document.getElementById('status').innerText = "Match Confirmed!";
+                        }
+                    } else {
+                        document.getElementById('status').innerText = "Scanning...";
+                        document.getElementById('result').classList.add('hidden');
+                    }
+                } catch (e) {}
+            }
+            // Throttled loop (run every 300ms) to save battery and speed up UI
+            setTimeout(() => requestAnimationFrame(runScanner), 300);
+        }
+
+        // --- INVENTORY MGMT ---
+        function renderList() {
+            const container = document.getElementById('inv-list');
+            if(Object.keys(inventory).length === 0) {
+                container.innerHTML = "<p style='text-align:center;color:#94a3b8;'>No items saved.</p>";
+                return;
+            }
+            container.innerHTML = Object.keys(inventory).map(k => `
+                <div class="inv-item">
+                    <div>
+                        <div style="font-weight:bold;">${k}</div>
+                        <div style="font-size:12px; color:#64748b;">Buy: $${inventory[k].buy} | Sell: $${inventory[k].sell}</div>
+                    </div>
+                    <button class="del-btn" onclick="deleteItem('${k}')">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteItem(name) {
+            if(!confirm(`Delete ${name} from AI memory?`)) return;
+            
+            // Remove from metadata
+            delete inventory[name];
+            
+            // In KNN, we can't easily delete one class, so we clear and suggest re-saving 
+            // Or more simply: We rebuild the classifier dataset without that key
+            const dataset = classifier.getClassifierDataset();
+            delete dataset[name];
+            classifier.setClassifierDataset(dataset);
+
+            // Save updated state
+            const datasetObj = {};
+            Object.keys(dataset).forEach((key) => {
+                datasetObj[key] = { data: Array.from(dataset[key].dataSync()), shape: dataset[key].shape };
+            });
+            await saveToDB(JSON.stringify(datasetObj), inventory);
+            renderList();
+        }
+
+        async function clearAllData() {
+            if(confirm("Erase everything?")) {
+                const request = indexedDB.deleteDatabase(dbName);
+                request.onsuccess = () => location.reload();
+            }
+        }
+
+        init();
     </script>
 </body>
 </html>
