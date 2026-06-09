@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Scanner AI</title>
+    
+    <link rel="manifest" href="./manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="./icon.png">
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier"></script>
+    
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --success: #22c55e; --danger: #ef4444; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); padding-bottom: 90px; }
+        .header { background: var(--card); padding: 18px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: 800; }
+        .container { padding: 15px; max-width: 500px; margin: auto; }
+        .video-box { width: 100%; border-radius: 20px; overflow: hidden; background: #000; line-height: 0; box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+        video { width: 100%; transform: none; } 
+        .card { background: var(--card); padding: 20px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; background: var(--primary); color: white; border: none; padding: 16px; border-radius: 14px; font-weight: 700; cursor: pointer; margin: 8px 0; }
+        .btn-train { background: var(--success); }
+        .price-badge { background: #f0f9ff; padding: 16px; border-radius: 15px; margin-top: 15px; border-left: 6px solid var(--success); }
+        .nav-bar { position: fixed; bottom: 0; width: 100%; background: white; display: flex; padding: 10px 0 25px 0; border-top: 1px solid #e2e8f0; }
+        .nav-item { text-align: center; font-size: 11px; color: #94a3b8; flex: 1; cursor: pointer; }
+        .nav-item.active { color: var(--primary); font-weight: bold; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">PRO SCANNER AI</div>
+
+    <div id="scan-screen" class="container">
+        <div class="card">
+            <div class="video-box"><video id="v-scan" autoplay playsinline></video></div>
+            <div id="status" style="text-align:center; margin:10px; font-weight:600;">Initializing AI...</div>
+            <div id="result" class="price-badge hidden">
+                <div style="color:var(--danger); font-size:12px; font-weight:bold;">BUY: $<span id="d-buy">0</span></div>
+                <div style="color:var(--success); font-size:24px; font-weight:900;">SELL: $<span id="d-sell">0</span></div>
+                <div id="d-name" style="font-size:14px; font-weight:bold; color:#475569;">NAME</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-screen" class="container hidden">
+        <div class="card">
+            <h3>Add Product</h3>
+            <input type="text" id="i-name" placeholder="Product Name">
+            <input type="number" id="i-buy" placeholder="Buy Price $">
+            <input type="number" id="i-sell" placeholder="Sell Price $">
+            <div class="video-box" style="height:150px; margin:10px 0;"><video id="v-train" autoplay playsinline></video></div>
+            <button class="btn-train" id="t-btn">HOLD TO TRAIN AI</button>
+            <button onclick="save()">SAVE PRODUCT</button>
+        </div>
+    </div>
+
+    <div id="list-screen" class="container hidden">
+        <div class="card"><h3>Inventory</h3><div id="inv-list"></div></div>
+    </div>
+
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="tab('scan-screen', this)">📷<br>Scan</div>
+        <div class="nav-item" onclick="tab('add-screen', this)">➕<br>Add</div>
+        <div class="nav-item" onclick="tab('list-screen', this)">📦<br>Items</div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js'); }
+        let classifier, net, inv = JSON.parse(localStorage.getItem('db_v1')) || {};
+        const vScan = document.getElementById('v-scan'), vTrain = document.getElementById('v-train');
+
+        async function init() {
+            classifier = knnClassifier.create();
+            net = await mobilenet.load();
+            document.getElementById('status').innerText = "Ready to Scan";
+            cam(vScan); loop();
+        }
+
+        async function cam(v) {
+            const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}, audio:false});
+            v.srcObject = s;
+        }
+
+        function tab(id, el) {
+            document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(id).classList.remove('hidden');
+            el.classList.add('active');
+            if(id === 'add-screen') cam(vTrain);
+            if(id === 'list-screen') render();
+        }
+
+        const tBtn = document.getElementById('t-btn');
+        tBtn.onmousedown = train; tBtn.ontouchstart = (e) => { e.preventDefault(); train(); };
+        async function train() {
+            const n = document.getElementById('i-name').value;
+            if(!n) return alert("Enter Name");
+            classifier.addExample(await net.infer(vTrain, 'conv_preds'), n);
+        }
+
+        function save() {
+            const n = document.getElementById('i-name').value;
+            inv[n] = { buy: document.getElementById('i-buy').value, sell: document.getElementById('i-sell').value };
+            localStorage.setItem('db_v1', JSON.stringify(inv));
+            alert("Saved!"); tab('scan-screen', document.querySelector('.nav-item'));
+        }
+
+        async function loop() {
+            if (classifier.getNumClasses() > 0 && !document.getElementById('scan-screen').classList.contains('hidden')) {
+                const res = await classifier.predictClass(await net.infer(vScan, 'conv_preds'));
+                if (res.confidences[res.label] > 0.85) {
+                    document.getElementById('d-name').innerText = res.label.toUpperCase();
+                    document.getElementById('d-buy').innerText = inv[res.label].buy;
+                    document.getElementById('d-sell').innerText = inv[res.label].sell;
+                    document.getElementById('result').classList.remove('hidden');
+                } else { document.getElementById('result').classList.add('hidden'); }
+            }
+            requestAnimationFrame(loop);
+        }
+
+        function render() {
+            document.getElementById('inv-list').innerHTML = Object.keys(inv).map(k => `<div style="padding:10px; border-bottom:1px solid #eee;"><b>${k}</b> - $${inv[k].sell}</div>`).join('');
+        }
+        init();
+    </script>
+</body>
+</html>
